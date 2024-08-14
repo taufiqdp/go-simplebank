@@ -2,17 +2,20 @@ package utils
 
 import (
 	"math/rand"
+	"time"
 )
 
+var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+
 func RandomInt(min, max int) int {
-	return min + rand.Intn(max-min)
+	return rng.Intn(max-min+1) + min
 }
 
 func RandomString(n int) string {
-	var letter = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, n)
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	b := make([]byte, n)
 	for i := range b {
-		b[i] = letter[rand.Intn(len(letter))]
+		b[i] = letters[rng.Intn(len(letters))]
 	}
 	return string(b)
 }
@@ -27,6 +30,5 @@ func RandomMoney() int64 {
 
 func RandomCurrency() string {
 	currencies := []string{"USD", "EUR", "IDR"}
-	n := len(currencies)
-	return currencies[rand.Intn(n)]
+	return currencies[rng.Intn(len(currencies))]
 }
