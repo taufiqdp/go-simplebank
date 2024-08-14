@@ -39,7 +39,7 @@ func TestTransferTx(t *testing.T) {
 	}
 
 	for i := 0; i < n; i++ {
-		fmt.Printf("\nIteration: %d\n", i + 1)
+		fmt.Printf("\nIteration: %d\n", i+1)
 		err := <-errs
 		require.NoError(t, err)
 
@@ -71,7 +71,7 @@ func TestTransferTx(t *testing.T) {
 
 		dif1 := account1.Balance - result.FromAccount.Balance
 		dif2 := result.ToAccount.Balance - account2.Balance
-		
+
 		fmt.Println("Account 1 balace: ", result.FromAccount.Balance)
 		fmt.Println("Account 2 balace: ", result.ToAccount.Balance)
 		fmt.Println("Dif1: ", dif1)
@@ -80,8 +80,8 @@ func TestTransferTx(t *testing.T) {
 		require.Equal(t, dif1, dif2)
 		require.True(t, dif1%amount == 0)
 		require.True(t, dif2%amount == 0)
-		require.True(t, dif1 > 0 && dif1 <= int64(n) * amount)
-		require.True(t, dif2 > 0 && dif2 <= int64(n) * amount)
+		require.True(t, dif1 > 0 && dif1 <= int64(n)*amount)
+		require.True(t, dif2 > 0 && dif2 <= int64(n)*amount)
 	}
 
 	updatedAccount1, err := testQueries.GetAccount(context.Background(), account1.ID)
@@ -91,4 +91,57 @@ func TestTransferTx(t *testing.T) {
 	updatedAccount2, err := testQueries.GetAccount(context.Background(), account2.ID)
 	require.NoError(t, err)
 	require.Equal(t, account2.Balance+int64(n)*amount, updatedAccount2.Balance)
+}
+
+func TestDeadlockTrasferTx(t *testing.T) {
+	store := NewStore(testDB)
+
+	account1 := CreateRandomAccount(t)
+	account2 := CreateRandomAccount(t)
+
+	fmt.Printf("Account %d balace: %d\n", account1.ID, account1.Balance)
+	fmt.Printf("Account %d balace: %d\n", account2.ID, account2.Balance)
+
+	n := 10
+	amount := int64(10)
+
+	// Run n concurrent transfer transactions
+	errs := make(chan error, n)
+
+	for i := 0; i < n; i++ {
+		fromAccountID := account1.ID
+		toAccountID := account2.ID
+
+		if i%2 == 1 {
+			fromAccountID = account2.ID
+			toAccountID = account1.ID
+		}
+
+		go func() {
+			_, err := store.TransferTx(context.Background(), CreateTransferParams{
+				FromAccountID: fromAccountID,
+				ToAccountID:   toAccountID,
+				Amount:        amount,
+			})
+
+			errs <- err
+
+		}()
+	}
+
+	for i := 0; i < n; i++ {
+		err := <-errs
+		require.NoError(t, err)
+	}
+
+	updatedAccount1, err := testQueries.GetAccount(context.Background(), account1.ID)
+	require.NoError(t, err)
+	require.Equal(t, account1.Balance, updatedAccount1.Balance)
+	fmt.Printf("Account %d balance: %d\n", updatedAccount1.ID, updatedAccount1.Balance)
+
+	updatedAccount2, err := testQueries.GetAccount(context.Background(), account2.ID)
+	require.NoError(t, err)
+	require.Equal(t, account2.Balance, updatedAccount2.Balance)
+	fmt.Printf("Account %d balance: %d\n", updatedAccount2.ID, updatedAccount2.Balance)
+
 }

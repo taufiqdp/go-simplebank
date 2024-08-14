@@ -37,12 +37,6 @@ func (store *Store) execTx(ctx context.Context, fn func(*Queries) error) error {
 	return tx.Commit()
 }
 
-type TransferTxParams struct {
-	FromAccountID int64 `json:"from_account_id"`
-	ToAccountID   int64 `json:"to_account_id"`
-	Amount        int64 `json:"amount"`
-}
-
 type TransferTxResult struct {
 	Transfer    Transfer `json:"transfer"`
 	FromAccount Account  `json:"from_account"`
@@ -59,60 +53,85 @@ func (store *Store) TransferTx(ctx context.Context, arg CreateTransferParams) (T
 	err := store.execTx(ctx, func(q *Queries) error {
 		var err error
 
-		// txName := ctx.Value(TxKey).(string)
-
-		if result.Transfer, err = q.CreateTransfer(ctx, CreateTransferParams{
+		result.Transfer, err = q.CreateTransfer(ctx, CreateTransferParams{
 			FromAccountID: arg.FromAccountID,
 			ToAccountID:   arg.ToAccountID,
 			Amount:        arg.Amount,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
 
-		if result.FromAccount, err = q.GetAccountForUpdate(ctx, arg.FromAccountID); err != nil {
+		// Acquire locks on accounts in a consistent order based on their IDs
+		var firstAccountID, secondAccountID int64
+		if arg.FromAccountID < arg.ToAccountID {
+			firstAccountID = arg.FromAccountID
+			secondAccountID = arg.ToAccountID
+		} else {
+			firstAccountID = arg.ToAccountID
+			secondAccountID = arg.FromAccountID
+		}
+
+		// Get accounts for update in consistent order
+		result.FromAccount, err = q.GetAccountForUpdate(ctx, firstAccountID)
+		if err != nil {
+			return err
+		}
+		result.ToAccount, err = q.GetAccountForUpdate(ctx, secondAccountID)
+		if err != nil {
 			return err
 		}
 
-		if result.ToAccount, err = q.GetAccountForUpdate(ctx, arg.ToAccountID); err != nil {
-			return err
-		}
-
-		if result.FromEntry, err = q.CreateEntry(ctx, CreateEntryParams{
+		// Create entries
+		result.FromEntry, err = q.CreateEntry(ctx, CreateEntryParams{
 			AccountID: arg.FromAccountID,
 			Amount:    -arg.Amount,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
 
-		if result.ToEntry, err = q.CreateEntry(ctx, CreateEntryParams{
+		result.ToEntry, err = q.CreateEntry(ctx, CreateEntryParams{
 			AccountID: arg.ToAccountID,
 			Amount:    arg.Amount,
-		}); err != nil {
-			return err
-		}
-
-		account1, err := q.GetAccount(ctx, arg.FromAccountID)
+		})
 		if err != nil {
 			return err
 		}
 
-		account2, err := q.GetAccount(ctx, arg.ToAccountID)
-		if err != nil {
-			return err
-		}
+		// Update account balances
+		if arg.FromAccountID < arg.ToAccountID {
+			result.FromAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+				ID:     arg.FromAccountID,
+				Amount: -arg.Amount,
+			})
+			if err != nil {
+				return err
+			}
 
-		if result.FromAccount, err = q.UpdateAccount(ctx, UpdateAccountParams{
-			ID:      account1.ID,
-			Balance: account1.Balance - arg.Amount,
-		}); err != nil {
-			return err
-		}
+			result.ToAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+				ID:     arg.ToAccountID,
+				Amount: arg.Amount,
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			result.ToAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+				ID:     arg.ToAccountID,
+				Amount: arg.Amount,
+			})
+			if err != nil {
+				return err
+			}
 
-		if result.ToAccount, err = q.UpdateAccount(ctx, UpdateAccountParams{
-			ID:      account2.ID,
-			Balance: account2.Balance + arg.Amount,
-		}); err != nil {
-			return err
+			result.FromAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+				ID:     arg.FromAccountID,
+				Amount: -arg.Amount,
+			})
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
