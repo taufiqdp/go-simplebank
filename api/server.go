@@ -31,6 +31,9 @@ func NewServer(store db.Store) *Server {
 		})
 	})
 
+	engine.POST("/users", server.CreateUser)
+	engine.GET("/users/:username", server.GetUser)
+
 	engine.POST("/accounts", server.CreateAccount)
 	engine.GET("/accounts/:id", server.GetAccount)
 	engine.GET("/accounts", server.ListAccount)
