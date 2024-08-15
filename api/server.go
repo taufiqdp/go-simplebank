@@ -8,11 +8,11 @@ import (
 )
 
 type Server struct {
-	db     *db.Store
+	db     db.Store
 	router *gin.Engine
 }
 
-func NewServer(store *db.Store) *Server {
+func NewServer(store db.Store) *Server {
 	server := &Server{db: store}
 	gin.SetMode(gin.DebugMode)
 
