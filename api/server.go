@@ -16,7 +16,7 @@ func NewServer(store *db.Store) *Server {
 	server := &Server{db: store}
 	gin.SetMode(gin.DebugMode)
 
-	engine := gin.New()
+	engine := gin.Default()
 	engine.SetTrustedProxies([]string{"127.0.0.1"})
 
 	engine.GET("/", func(ctx *gin.Context) {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	_ "github.com/lib/pq"
+	"github.com/taufiqdp/go-simplebank/utils"
 )
 
 var testQueries *Queries
@@ -14,7 +15,13 @@ var testDB *sql.DB
 
 func TestMain(m *testing.M) {
 	var err error
-	testDB, err = sql.Open("postgres", "postgresql://root:pwd@127.0.0.1:5432/simplebank?sslmode=disable")
+
+	config, err := utils.LoadConfig("../..")
+	if err != nil {
+		log.Fatal("cannot load config:", err)
+	}
+
+	testDB, err = sql.Open(config.DBDriver, config.DBSource)
 
 	if err != nil {
 		log.Fatal("cannot connect to db: ", err)
