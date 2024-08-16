@@ -37,17 +37,23 @@ func NewServer(config utils.Config, store db.Store) (*Server, error) {
 		v.RegisterValidation("currency", validCurrency)
 	}
 
+	server.setupRouter()
+	return server, nil
+}
+
+func (server *Server) setupRouter() {
 	engine := gin.Default()
 	engine.SetTrustedProxies([]string{"127.0.0.1"})
 
 	engine.GET("/", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{
-			"status": "ok",
+			"health_check": "ok",
 		})
 	})
 
 	engine.POST("/users", server.CreateUser)
 	engine.GET("/users/:username", server.GetUser)
+	engine.POST("/users/login", server.LoginUser)
 
 	engine.POST("/accounts", server.CreateAccount)
 	engine.GET("/accounts/:id", server.GetAccount)
@@ -56,7 +62,6 @@ func NewServer(config utils.Config, store db.Store) (*Server, error) {
 	engine.POST("/transfers", server.CreateTransfer)
 
 	server.router = engine
-	return server, nil
 }
 
 func (server *Server) Start(addr string) error {
