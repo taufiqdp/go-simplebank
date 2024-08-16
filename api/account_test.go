@@ -17,7 +17,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestGetAccount(t *testing.T) {
+func TestGetAccountAPI(t *testing.T) {
 	account := randomAccount()
 
 	testCases := []struct {
